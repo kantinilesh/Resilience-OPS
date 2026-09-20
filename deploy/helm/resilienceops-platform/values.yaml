@@ -1,0 +1,11 @@
+global:
+  environment: prod
+  clusterDomain: cluster.local
+
+order-service:
+  enabled: true
+  replicaCount: 3
+
+remediation-service:
+  enabled: true
+  replicaCount: 1

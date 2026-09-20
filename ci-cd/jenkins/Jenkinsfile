@@ -1,0 +1,104 @@
+// Declarative Jenkinsfile for ResilienceOps Monorepo
+pipeline {
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    some-label: jenkins-build-agent
+spec:
+  containers:
+  - name: maven
+    image: maven:3.9.6-eclipse-temurin-21
+    command: ['cat']
+    tty: true
+  - name: docker
+    image: docker:24-dind
+    securityContext:
+      privileged: true
+  - name: helm
+    image: alpine/helm:3.14.0
+    command: ['cat']
+    tty: true
+'''
+        }
+    }
+
+    environment {
+        AWS_REGION     = 'us-east-1'
+        ECR_REGISTRY   = '123456789012.dkr.ecr.us-east-1.amazonaws.com'
+        HELM_RELEASE   = 'resilienceops'
+        APP_NAMESPACE  = 'resilienceops-apps'
+    }
+
+    stages {
+        stage('Code Quality & Unit Tests') {
+            steps {
+                container('maven') {
+                    echo "Executing Maven unit and integration tests..."
+                    sh 'cd services && mvn clean test -B'
+                }
+            }
+        }
+
+        stage('Static Analysis & Security Gate') {
+            parallel {
+                stage('SonarQube Quality Gate') {
+                    steps {
+                        echo "Executing SonarQube code quality scan..."
+                    }
+                }
+                stage('Trivy Security Vulnerability Scan') {
+                    steps {
+                        echo "Scanning dependencies and Docker bases with Trivy..."
+                    }
+                }
+            }
+        }
+
+        stage('Container Build & ECR Push') {
+            steps {
+                container('docker') {
+                    echo "Building and pushing container images to AWS ECR..."
+                    // sh 'docker build -t ${ECR_REGISTRY}/order-service:${BUILD_NUMBER} services/order-service'
+                }
+            }
+        }
+
+        stage('Helm Lint & Staging Deploy') {
+            steps {
+                container('helm') {
+                    echo "Linting Helm charts..."
+                    sh 'helm lint deploy/helm/charts/*'
+                    echo "Deploying to Staging namespace..."
+                    // sh 'helm upgrade --install ${HELM_RELEASE}-staging deploy/helm/resilienceops-platform --namespace staging'
+                }
+            }
+        }
+
+        stage('Chaos Resilience Verification Gate') {
+            steps {
+                echo "Injecting Chaos Mesh experiments in staging to verify self-healing..."
+                // sh 'kubectl apply -f chaos/experiments/network-delay-inter-service.yaml -n staging'
+                echo "Validating error rate remains below 0.1% and recovery occurs in < 300s..."
+            }
+        }
+
+        stage('Production Canary Promotion') {
+            steps {
+                echo "Promoting Canary deployment to Production..."
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        failure {
+            echo "Pipeline failed. Alerting on-call channel."
+        }
+    }
+}

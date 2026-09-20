@@ -1,0 +1,34 @@
+# Java / Maven / Gradle
+target/
+*.class
+*.jar
+*.war
+.gradle/
+build/
+bin/
+
+# IDE & OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+!*.tfvars.example
+
+# Helm
+*.tgz
+charts/*.tgz
+
+# Logs
+*.log
+logs/
+
+# Docker
+.dockerignore

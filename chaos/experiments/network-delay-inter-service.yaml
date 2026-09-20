@@ -1,0 +1,25 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: network-delay-inter-service
+  namespace: resilienceops-apps
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - resilienceops-apps
+    labelSelectors:
+      app.kubernetes.io/name: order-service
+  delay:
+    latency: '300ms'
+    jitter: '50ms'
+  direction: to
+  target:
+    selector:
+      namespaces:
+        - resilienceops-apps
+      labelSelectors:
+        app.kubernetes.io/name: inventory-service
+    mode: all
+  duration: '5m'

@@ -1,0 +1,33 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: inventory-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+resilience4j:
+  ratelimiter:
+    instances:
+      inventoryApi:
+        limitForPeriod: 1000
+        limitRefreshPeriod: 1s
+        timeoutDuration: 50ms
+  bulkhead:
+    instances:
+      inventoryApi:
+        maxConcurrentCalls: 50
+        maxWaitDuration: 100ms
