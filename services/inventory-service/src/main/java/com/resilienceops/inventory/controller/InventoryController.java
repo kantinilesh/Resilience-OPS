@@ -1,61 +1,60 @@
 package com.resilienceops.inventory.controller;
 
-import io.github.resilience4j.bulkhead.annotation.Bulkhead;
-import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import com.resilienceops.inventory.model.*;
+import com.resilienceops.inventory.service.InventoryService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/inventory")
 public class InventoryController {
 
     private static final Logger log = LoggerFactory.getLogger(InventoryController.class);
-    private static final Map<String, Integer> STOCK_DB = new ConcurrentHashMap<>();
+    private final InventoryService inventoryService;
 
-    static {
-        STOCK_DB.put("SKU-LAPTOP-01", 100);
-        STOCK_DB.put("SKU-PHONE-02", 250);
+    public InventoryController(InventoryService inventoryService) {
+        this.inventoryService = inventoryService;
     }
 
     @PostMapping("/reserve")
-    @RateLimiter(name = "inventoryApi")
-    @Bulkhead(name = "inventoryApi")
-    public ResponseEntity<Map<String, Object>> reserveStock(@RequestBody Map<String, Object> request) {
-        String sku = (String) request.getOrDefault("sku", "SKU-LAPTOP-01");
-        int quantity = (int) request.getOrDefault("quantity", 1);
-
-        log.info("Attempting to reserve {} items for SKU: {}", quantity, sku);
-        int available = STOCK_DB.getOrDefault(sku, 0);
-
-        if (available >= quantity) {
-            STOCK_DB.put(sku, available - quantity);
-            return ResponseEntity.ok(Map.of(
-                    "sku", sku,
-                    "reservedQuantity", quantity,
-                    "remainingStock", STOCK_DB.get(sku),
-                    "status", "RESERVED"
-            ));
+    public ResponseEntity<ReservationResponse> reserve(@Valid @RequestBody ReservationRequest request) {
+        ReservationResponse response = inventoryService.reserveStock(request);
+        if ("RESERVED".equals(response.status())) {
+            return ResponseEntity.ok(response);
+        } else if ("INSUFFICIENT_STOCK".equals(response.status())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
-
-        return ResponseEntity.status(409).body(Map.of(
-                "sku", sku,
-                "requestedQuantity", quantity,
-                "availableStock", available,
-                "status", "INSUFFICIENT_STOCK"
-        ));
     }
 
-    @GetMapping("/{sku}/availability")
-    public ResponseEntity<Map<String, Object>> checkAvailability(@PathVariable String sku) {
-        int available = STOCK_DB.getOrDefault(sku, 0);
-        return ResponseEntity.ok(Map.of(
-                "sku", sku,
-                "availableStock", available
-        ));
+    @PostMapping("/release")
+    public ResponseEntity<ReservationResponse> release(@Valid @RequestBody ReservationRequest request) {
+        ReservationResponse response = inventoryService.releaseReservation(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/restock")
+    public ResponseEntity<InventoryItem> restock(@Valid @RequestBody RestockRequest request) {
+        InventoryItem item = inventoryService.restock(request);
+        return ResponseEntity.ok(item);
+    }
+
+    @GetMapping("/{sku}")
+    public ResponseEntity<InventoryItem> getItem(@PathVariable String sku) {
+        return inventoryService.getItem(sku)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @GetMapping
+    public ResponseEntity<List<InventoryItem>> listAll() {
+        return ResponseEntity.ok(inventoryService.getAllItems());
     }
 }
