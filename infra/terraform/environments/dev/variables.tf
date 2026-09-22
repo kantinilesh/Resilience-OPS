@@ -7,38 +7,38 @@ variable "aws_region" {
 variable "environment" {
   description = "Environment identifier"
   type        = string
-  default     = "prod"
+  default     = "dev"
 }
 
 variable "vpc_cidr" {
-  description = "VPC CIDR block for production"
+  description = "VPC CIDR block"
   type        = string
-  default     = "10.100.0.0/16"
+  default     = "10.10.0.0/16"
 }
 
 variable "availability_zones" {
-  description = "Availability zones list for 3-AZ high availability"
+  description = "Availability zones list"
   type        = list(string)
-  default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
+  default     = ["us-east-1a", "us-east-1b"]
 }
 
 variable "node_instance_types" {
-  description = "EC2 instance types for production worker nodes"
+  description = "EC2 instance types for dev worker nodes"
   type        = list(string)
-  default     = ["m6i.large"]
+  default     = ["t3.medium"]
 }
 
 variable "desired_size" {
   type    = number
-  default = 3
+  default = 2
 }
 
 variable "min_size" {
   type    = number
-  default = 3
+  default = 2
 }
 
 variable "max_size" {
   type    = number
-  default = 6
+  default = 4
 }

@@ -6,16 +6,6 @@ terraform {
       version = "~> 5.40"
     }
   }
-
-  # Production S3 Remote Backend with DynamoDB State Locking
-  # Run `terraform init` after provisioning state_backend bucket or comment backend block for first-run bootstrap
-  backend "s3" {
-    bucket         = "resilienceops-tf-state-prod"
-    key            = "resilienceops/prod/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "resilienceops-tf-locks-prod"
-    encrypt        = true
-  }
 }
 
 provider "aws" {
@@ -26,7 +16,6 @@ provider "aws" {
       Environment = var.environment
       Platform    = "ResilienceOps"
       ManagedBy   = "Terraform"
-      Compliance  = "HighAvailability-99.9"
     }
   }
 }
@@ -35,13 +24,13 @@ locals {
   cluster_name = "resilienceops-${var.environment}-eks"
 }
 
-# 1. State Backend Resources (S3 Bucket & DynamoDB Table)
+# 1. State Backend
 module "state_backend" {
   source      = "../../modules/state-backend"
   environment = var.environment
 }
 
-# 2. Multi-AZ VPC (3 AZs with dedicated NAT Gateways for full zone isolation)
+# 2. Multi-AZ VPC (3 AZs with dedicated NAT Gateway per AZ for chaos network partition testing)
 module "vpc" {
   source             = "../../modules/vpc"
   environment        = var.environment
@@ -51,7 +40,7 @@ module "vpc" {
   single_nat_gateway = false
 }
 
-# 3. EKS Cluster Module (v1.30, 3-6 nodes, IRSA for Prometheus/CloudWatch)
+# 3. EKS Cluster Module
 module "eks" {
   source              = "../../modules/eks"
   cluster_name        = local.cluster_name
@@ -64,7 +53,7 @@ module "eks" {
   max_size            = var.max_size
 }
 
-# 4. Production ECR Repositories with vulnerability scanning and lifecycle pruning
+# 4. ECR Repositories
 module "ecr" {
   source      = "../../modules/ecr"
   environment = var.environment
