@@ -1,0 +1,107 @@
+version: "3.8"
+
+networks:
+  resilienceops-net:
+    driver: bridge
+
+services:
+  # ==========================================
+  # Microservices
+  # ==========================================
+  order-service:
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+    image: resilienceops/order-service:1.0.0
+    container_name: order-service
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - INVENTORY_SERVICE_URL=http://inventory-service:8081
+    networks:
+      - resilienceops-net
+    restart: unless-stopped
+    depends_on:
+      - inventory-service
+
+  inventory-service:
+    build:
+      context: ./services/inventory-service
+      dockerfile: Dockerfile
+    image: resilienceops/inventory-service:1.0.0
+    container_name: inventory-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    networks:
+      - resilienceops-net
+    restart: unless-stopped
+
+  remediation-service:
+    build:
+      context: ./services/remediation-service
+      dockerfile: Dockerfile
+    image: resilienceops/remediation-service:1.0.0
+    container_name: remediation-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    networks:
+      - resilienceops-net
+    restart: unless-stopped
+
+  # ==========================================
+  # Observability & Self-Healing Loop
+  # ==========================================
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/docker-compose/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/docker-compose/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    networks:
+      - resilienceops-net
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./deploy/docker-compose/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    networks:
+      - resilienceops-net
+    restart: unless-stopped
+    depends_on:
+      - remediation-service
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=resilienceops
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./deploy/docker-compose/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./deploy/docker-compose/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/docker-compose/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - resilienceops-net
+    restart: unless-stopped
+    depends_on:
+      - prometheus

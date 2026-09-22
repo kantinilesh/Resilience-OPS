@@ -128,15 +128,39 @@ graph TB
 
 ---
 
-## 🛠️ Tech Stack & Tooling
+## 🐳 Local Development & Testing (Docker Compose)
 
-- **Core Application**: Java 21, Spring Boot 3.x, Spring Cloud, Resilience4j, Micrometer
-- **Containers & Orchestration**: Docker, Kubernetes 1.30+, AWS EKS, AWS ALB Ingress Controller
-- **Infrastructure as Code**: Terraform 1.8+, AWS Provider, Helm Provider
-- **Packaging & Delivery**: Helm 3.x
-- **CI/CD Automation**: Jenkins Declarative Pipelines, Docker Pipeline, Trivy, SonarQube
-- **Observability**: Prometheus Operator (kube-prometheus-stack), Alertmanager, Grafana, Micrometer Prometheus registry
-- **Chaos Engineering**: Chaos Mesh (PodChaos, NetworkChaos, StressChaos)
+The entire microservice fleet and local observability loop can be spun up with a single command:
+
+```bash
+docker compose up --build -d
+```
+
+### Local Services & Ports
+
+| Component | Port | Description | Health / Metrics Endpoint |
+| :--- | :--- | :--- | :--- |
+| **`order-service`** | `8080` | Order checkout & circuit breaker coordinator | `http://localhost:8080/actuator/health` |
+| **`inventory-service`** | `8081` | High-concurrency inventory ledger | `http://localhost:8081/actuator/health` |
+| **`remediation-service`** | `8082` | Autonomous self-healing agent | `http://localhost:8082/actuator/health` |
+| **`prometheus`** | `9090` | Time-series scraper & alerting engine | `http://localhost:9090/targets` |
+| **`alertmanager`** | `9093` | Alert grouping & webhook delivery engine | `http://localhost:9093` |
+| **`grafana`** | `3000` | Pre-configured golden signals dashboard (admin / `resilienceops`) | `http://localhost:3000` |
+
+### Simulating a Local Self-Healing Incident
+
+1. **Trigger deliberate chaos on `order-service`**:
+   ```bash
+   curl -X POST http://localhost:8080/api/v1/admin/chaos/simulate-failure \
+     -H "Content-Type: application/json" \
+     -d '{"action": "memory-leak", "megabytes": 150}'
+   ```
+2. **Observe Prometheus** (`http://localhost:9090/alerts`) transition `JvmMemorySaturation` from `PENDING` to `FIRING`.
+3. **Inspect Alertmanager** (`http://localhost:9093`) dispatching the webhook to `remediation-service`.
+4. **Verify remediation audit log**:
+   ```bash
+   curl http://localhost:8082/api/v1/remediation/history
+   ```
 
 ---
 
@@ -144,3 +168,4 @@ graph TB
 
 - Repository: [https://github.com/kantinilesh/Resilience-OPS](https://github.com/kantinilesh/Resilience-OPS)
 - Architecture Lead & Author: Nilesh Kanti
+

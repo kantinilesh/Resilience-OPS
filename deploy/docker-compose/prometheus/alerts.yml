@@ -1,0 +1,32 @@
+groups:
+  - name: resilienceops-self-healing-rules
+    rules:
+      - alert: MicroserviceHighErrorRate
+        expr: rate(http_server_requests_seconds_count{status=~"5.."}[30s]) > 0
+        for: 10s
+        labels:
+          severity: critical
+          namespace: resilienceops-apps
+        annotations:
+          summary: "Microservice {{ $labels.service }} is experiencing elevated 5xx error rate"
+          description: "Detected consecutive 5xx error spikes. Triggers autonomous Helm rollback."
+
+      - alert: JvmMemorySaturation
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.85
+        for: 15s
+        labels:
+          severity: critical
+          namespace: resilienceops-apps
+        annotations:
+          summary: "JVM Heap memory on {{ $labels.service }} exceeded 85%"
+          description: "Memory threshold breached. Triggers autonomous zero-downtime rolling restart."
+
+      - alert: ServiceDown
+        expr: up{job=~"order-service|inventory-service|remediation-service"} == 0
+        for: 10s
+        labels:
+          severity: critical
+          namespace: resilienceops-apps
+        annotations:
+          summary: "Target service {{ $labels.service }} is DOWN"
+          description: "Instance unresponsive to healthchecks. Triggering container restart."
